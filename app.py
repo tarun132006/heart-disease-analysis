@@ -4,7 +4,6 @@ import numpy as np
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
-from imblearn.over_sampling import SMOTE
 
 # ── Page Config ───────────────────────────────
 st.set_page_config(
@@ -24,8 +23,14 @@ def train_model():
     )
     scaler = StandardScaler()
     X_train = scaler.fit_transform(X_train)
-    smote = SMOTE(random_state=42)
-    X_train, y_train = smote.fit_resample(X_train, y_train)
+
+    # Manual oversampling — no external library needed
+    stroke_indices = np.where(y_train == 1)[0]
+    oversample_count = int((y_train == 0).sum() - (y_train == 1).sum())
+    extra_indices = np.random.RandomState(42).choice(stroke_indices, oversample_count, replace=True)
+    X_train = np.vstack([X_train, X_train[extra_indices]])
+    y_train = np.concatenate([y_train.values, y_train.values[extra_indices]])
+
     model = RandomForestClassifier(
         n_estimators=100, random_state=42, class_weight='balanced'
     )
@@ -82,7 +87,6 @@ if page == "👤 Quick Check (Public)":
             ["never smoked", "formerly smoked", "smokes", "Unknown"]
         )
 
-    # Show BMI only when weight and height are filled
     if weight and height:
         bmi = weight / ((height / 100) ** 2)
         st.info(f"📊 Your calculated BMI: **{bmi:.1f}**")
@@ -93,21 +97,18 @@ if page == "👤 Quick Check (Public)":
     st.divider()
 
     if st.button("🔍 Check My Risk", use_container_width=True):
-
-        # Validate inputs
         if not age or not weight or not height or gender == "Select...":
             st.warning("⚠️ Please fill in all fields before checking your risk.")
         else:
-            # Encode inputs
             gender_enc    = 1 if gender == "Male" else 0
             married_enc   = 1 if ever_married == "Yes" else 0
             hypert_enc    = 1 if hypertension == "Yes" else 0
             heart_enc     = 1 if heart_disease == "Yes" else 0
             smoking_map   = {"never smoked": 2, "formerly smoked": 1, "smokes": 3, "Unknown": 0}
             smoking_enc   = smoking_map[smoking]
-            work_enc      = 2   # Default: Private
-            residence_enc = 1   # Default: Urban
-            avg_glucose   = 100.0  # Default average
+            work_enc      = 2
+            residence_enc = 1
+            avg_glucose   = 100.0
 
             patient = pd.DataFrame([[gender_enc, age, hypert_enc, heart_enc,
                                       married_enc, work_enc, residence_enc,
@@ -185,8 +186,6 @@ else:
     st.divider()
 
     if st.button("🔍 Predict Stroke Risk", use_container_width=True):
-
-        # Validate inputs
         if not age or not avg_glucose or not bmi or gender == "Select...":
             st.warning("⚠️ Please fill in all fields before predicting.")
         else:
@@ -226,7 +225,7 @@ else:
                 st.success("✅ LOW RISK — Patient shows no strong indicators of stroke risk")
 
             st.divider()
-            st.caption("Model: Random Forest with SMOTE balancing · class_weight=balanced · Dataset: Kaggle Stroke Prediction")
+            st.caption("Model: Random Forest with manual oversampling · class_weight=balanced · Dataset: Kaggle Stroke Prediction")
 
 # ── Footer ────────────────────────────────────
 st.divider()
